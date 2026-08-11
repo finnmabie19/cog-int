@@ -1,4 +1,6 @@
 import {
+  boolean,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -45,6 +47,19 @@ export const notes = pgTable("notes", {
     .notNull()
     .defaultNow(),
   updatedBy: text("updated_by"),
+});
+
+export const featureFlags = pgTable("feature_flags", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  key: text("key").notNull().unique(),
+  description: text("description").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  /** 0–100. Percentage of traffic the flag is rolled out to when enabled. */
+  rolloutPercentage: integer("rollout_percentage").notNull().default(0),
+  lastChangedBy: text("last_changed_by"),
+  lastChangedByName: text("last_changed_by_name"),
+  lastChangedAt: timestamp("last_changed_at", { withTimezone: true }),
 });
 
 export const kycCases = pgTable("kyc_cases", {

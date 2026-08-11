@@ -16,6 +16,7 @@ import postgres from "postgres";
 import { withAudit, type AuditTx } from "../src/lib/audit";
 import * as schema from "../src/lib/db/schema";
 import type { SessionUser } from "../src/lib/session-user";
+import { flagsTool } from "../src/tools/flags/definition";
 import { kycTool } from "../src/tools/kyc/definition";
 
 const client = postgres(process.env.DATABASE_URL!, { prepare: false });
@@ -65,9 +66,10 @@ async function main() {
   }
 
   await seedKycCases();
+  await seedFeatureFlags();
 
   console.log(
-    "Seeded 3 users (admin@, ops@, viewer@example.com), notes, and KYC cases.",
+    "Seeded 3 users (admin@, ops@, viewer@example.com), notes, KYC cases, and feature flags.",
   );
   await client.end();
   // audit.ts holds its own (writable) connection pool open; exit explicitly.
@@ -225,6 +227,104 @@ async function seedKycCases() {
           .then((row) => row ?? null),
     });
   }
+}
+
+async function seedFeatureFlags() {
+  const existing = await db.query.featureFlags.findMany();
+  if (existing.length > 0) return;
+
+  const adminRow = await db.query.users.findFirst({
+    where: eq(schema.users.email, "admin@example.com"),
+  });
+  if (!adminRow) throw new Error("admin@example.com must be seeded first");
+  const admin: SessionUser = {
+    userId: adminRow.id,
+    email: adminRow.email,
+    name: adminRow.name,
+    roles: adminRow.roles,
+  };
+
+  const f = (
+    name: string,
+    key: string,
+    description: string,
+    enabled: boolean,
+    rolloutPercentage: number,
+  ) => ({
+    name,
+    key,
+    description,
+    enabled,
+    rolloutPercentage,
+    lastChangedBy: admin.email,
+    lastChangedByName: admin.name,
+    lastChangedAt: daysAgo(Math.floor(Math.random() * 10) + 1),
+  });
+
+  // 9 flags in mixed states. Three get history driven through withAudit below.
+  const flags = await db
+    .insert(schema.featureFlags)
+    .values([
+      f("New checkout flow", "checkout.new-flow", "Redesigned single-page checkout. Owned by the payments team.", true, 25),
+      f("Dark mode", "ui.dark-mode", "Dark theme across the customer dashboard.", true, 100),
+      f("CSV export", "reports.csv-export", "Lets customers export report data as CSV.", true, 100),
+      f("AI support suggestions", "support.ai-suggestions", "Suggested replies in the support inbox, generated per ticket.", true, 10),
+      f("New onboarding wizard", "onboarding.wizard-v2", "Multi-step onboarding replacing the single settings form.", false, 0),
+      f("Instant payouts", "payments.instant-payouts", "Same-day payouts for eligible accounts. Requires risk review before wide rollout.", true, 5),
+      f("Legacy billing page", "billing.legacy-page", "Kill switch for the old billing page while migration completes.", true, 100),
+      f("Search relevance v3", "search.relevance-v3", "New ranking model for in-app search.", false, 0),
+      f("Rate limit shield", "platform.rate-limit-shield", "Aggressive rate limiting under suspected abuse. Emergency use only.", false, 0),
+    ])
+    .returning();
+
+  const byKey = new Map(flags.map((flag) => [flag.key, flag]));
+  const read = (flagId: string) => (tx: AuditTx) =>
+    tx.query.featureFlags
+      .findFirst({ where: eq(schema.featureFlags.id, flagId) })
+      .then((row) => row ?? null);
+
+  const change = (
+    flagId: string,
+    action: "toggle_flag" | "set_rollout",
+    set: Partial<typeof schema.featureFlags.$inferInsert>,
+    reason: string,
+  ) =>
+    withAudit({
+      user: admin,
+      tool: flagsTool,
+      action,
+      entityType: "feature_flag",
+      entityId: flagId,
+      reason,
+      before: read(flagId),
+      mutate: (tx) =>
+        tx
+          .update(schema.featureFlags)
+          .set({
+            ...set,
+            lastChangedBy: admin.email,
+            lastChangedByName: admin.name,
+            lastChangedAt: new Date(),
+          })
+          .where(eq(schema.featureFlags.id, flagId)),
+      after: read(flagId),
+    });
+
+  // History for the checkout flag: on, then ramped 10% -> 25%.
+  const checkout = byKey.get("checkout.new-flow")!;
+  await change(checkout.id, "toggle_flag", { enabled: true }, "Starting the checkout redesign rollout per launch plan");
+  await change(checkout.id, "set_rollout", { rolloutPercentage: 10 }, "Initial 10% canary for the new checkout");
+  await change(checkout.id, "set_rollout", { rolloutPercentage: 25 }, "Error rates flat after one week at 10%; ramping to 25%");
+
+  // History for instant payouts: ramped, then pulled back.
+  const payouts = byKey.get("payments.instant-payouts")!;
+  await change(payouts.id, "set_rollout", { rolloutPercentage: 20 }, "Expanding instant payouts after risk sign-off");
+  await change(payouts.id, "set_rollout", { rolloutPercentage: 5 }, "Chargeback spike in the 20% cohort; pulling back to 5% while risk investigates");
+
+  // History for search relevance: tried on, turned back off.
+  const search = byKey.get("search.relevance-v3")!;
+  await change(search.id, "toggle_flag", { enabled: true }, "Enabling the v3 ranking model for internal dogfooding");
+  await change(search.id, "toggle_flag", { enabled: false }, "Latency regression in the ranking service; disabling until fixed");
 }
 
 main().catch((error) => {
