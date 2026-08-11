@@ -18,6 +18,8 @@ export interface AuditEntry {
   id: string;
   /** ISO-8601 string; serialized across the server/client boundary. */
   timestamp: string;
+  /** Timestamp already formatted for display on the server. */
+  when: string;
   actorEmail: string;
   actorName: string;
   tool: string;
@@ -39,7 +41,9 @@ const CSV_COLUMNS = [
 ] as const;
 
 function csvEscape(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  // Prefix formula-leading values so spreadsheets treat them as text.
+  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
 function toCsv(entries: AuditEntry[]): string {
@@ -56,15 +60,10 @@ function downloadCsv(entries: AuditEntry[]) {
   const link = document.createElement("a");
   link.href = url;
   link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
-}
-
-function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function AuditTable({ entries }: { entries: AuditEntry[] }) {
@@ -214,7 +213,7 @@ export function AuditTable({ entries }: { entries: AuditEntry[] }) {
           {filtered.map((entry) => (
             <TableRow key={entry.id}>
               <TableCell className="whitespace-nowrap text-muted-foreground">
-                {formatTimestamp(entry.timestamp)}
+                {entry.when}
               </TableCell>
               <TableCell>
                 <p className="font-medium">{entry.actorName}</p>

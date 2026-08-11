@@ -35,6 +35,10 @@ export async function AuditPage() {
   const entries: AuditEntry[] = rows.map((row) => ({
     id: row.id,
     timestamp: row.timestamp.toISOString(),
+    when: row.timestamp.toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
     actorEmail: row.actorEmail,
     actorName: nameByEmail.get(row.actorEmail) ?? row.actorEmail,
     tool: row.tool,
