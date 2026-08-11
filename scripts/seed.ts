@@ -261,11 +261,13 @@ async function seedFeatureFlags() {
     lastChangedAt: daysAgo(Math.floor(Math.random() * 10) + 1),
   });
 
-  // 9 flags in mixed states. Three get history driven through withAudit below.
+  // 9 flags in mixed states. Three get history driven through withAudit
+  // below and are inserted in their pre-history state, so each audit row's
+  // before/after snapshot matches what a user would have seen.
   const flags = await db
     .insert(schema.featureFlags)
     .values([
-      f("New checkout flow", "checkout.new-flow", "Redesigned single-page checkout. Owned by the payments team.", true, 25),
+      f("New checkout flow", "checkout.new-flow", "Redesigned single-page checkout. Owned by the payments team.", false, 0),
       f("Dark mode", "ui.dark-mode", "Dark theme across the customer dashboard.", true, 100),
       f("CSV export", "reports.csv-export", "Lets customers export report data as CSV.", true, 100),
       f("AI support suggestions", "support.ai-suggestions", "Suggested replies in the support inbox, generated per ticket.", true, 10),
