@@ -46,3 +46,23 @@ export const notes = pgTable("notes", {
     .defaultNow(),
   updatedBy: text("updated_by"),
 });
+
+export const kycCases = pgTable("kyc_cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  dateOfBirth: text("date_of_birth").notNull(),
+  country: text("country").notNull(),
+  documentType: text("document_type").notNull(),
+  documentNumber: text("document_number").notNull(),
+  riskSignals: text("risk_signals").array().notNull().default([]),
+  /** "pending" | "approved" | "rejected" */
+  status: text("status").notNull().default("pending"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  claimedBy: text("claimed_by"),
+  claimedByName: text("claimed_by_name"),
+  decidedBy: text("decided_by"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+});
