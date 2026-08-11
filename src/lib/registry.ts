@@ -12,8 +12,11 @@ export interface ToolDefinition<TActions extends string = string> {
   name: string;
   slug: string;
   description: string;
-  /** Roles allowed to see and open this tool at all. */
-  requiredRoles: readonly Role[];
+  /**
+   * Roles allowed to see and open this tool at all, or the sentinel
+   * "authenticated" — any signed-in user, regardless of roles.
+   */
+  requiredRoles: readonly Role[] | "authenticated";
   /** Every mutating action the tool can perform, with the roles allowed to perform it. */
   actions: Record<TActions, ActionDefinition>;
   /** The tool's page, rendered at /tools/[slug]. */
@@ -32,6 +35,7 @@ export function defineTool<TActions extends string>(
 }
 
 export function canAccessTool(user: SessionUser, tool: ToolDefinition): boolean {
+  if (tool.requiredRoles === "authenticated") return true;
   return tool.requiredRoles.some((role) => user.roles.includes(role));
 }
 
