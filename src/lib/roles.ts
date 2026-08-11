@@ -5,7 +5,13 @@
  * In production these arrive as OIDC claims (Okta/Entra groups); locally they
  * are stored on the seeded users.
  */
-export const ROLES = ["platform_admin", "ops", "viewer"] as const;
+export const ROLES = [
+  "platform_admin",
+  "ops",
+  "viewer",
+  "kyc_reviewer",
+  "kyc_viewer",
+] as const;
 
 export type Role = (typeof ROLES)[number];
 

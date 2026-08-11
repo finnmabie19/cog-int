@@ -1,0 +1,1 @@
+export { kycTool } from "./definition";

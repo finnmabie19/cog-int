@@ -9,7 +9,7 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx scripts/seed.ts",
+    "db:seed": "tsx --require ./scripts/stub-server-only.cjs scripts/seed.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -15,6 +15,13 @@
       "when": 1786407460495,
       "tag": "0001_audit_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786408899147,
+      "tag": "0002_messy_prima",
+      "breakpoints": true
     }
   ]
 }
